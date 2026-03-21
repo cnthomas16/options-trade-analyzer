@@ -132,6 +132,9 @@ def register_callbacks(app):
         Output('trades-store', 'data'),
         Output('fetch-status', 'children', allow_duplicate=True),
         Output('fetch-log-store', 'data', allow_duplicate=True),
+        Output('csv-account-filter', 'options'),
+        Output('csv-account-filter', 'value'),
+        Output('account-filter-collapse', 'is_open'),
         Input('csv-upload', 'contents'),
         State('csv-upload', 'filename'),
         State('date-range-picker', 'start_date'),
@@ -140,31 +143,89 @@ def register_callbacks(app):
     )
     def on_csv_upload(contents, filename, start_date, end_date):
         if not contents:
-            return no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update, no_update, no_update
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string).decode('utf-8')
-        real_trades, split_map, get_key = parse_csv_content(decoded)
+        real_trades, split_map, get_key, broker = parse_csv_content(decoded)
         combined = _merge_manual_trades(real_trades, start_date, end_date)
         positions_data = _build_and_serialize_positions(combined, split_map, get_key)
 
-        return {
-            'trades': _serialize_trades(combined),
-            'positions': positions_data,
-            'filename': filename,
-        }, None, {'status': 'idle'}
+        # Build account filter options for Fidelity multi-account CSVs
+        account_options = []
+        show_filter = False
+        if broker == 'fidelity':
+            accounts = sorted(set(
+                t['account'] for t in real_trades if t.get('account')
+            ))
+            if len(accounts) > 1:
+                account_options = [{'label': a, 'value': a} for a in accounts]
+                show_filter = True
+
+        return (
+            {
+                'trades': _serialize_trades(combined),
+                'positions': positions_data,
+                'filename': filename,
+                'broker': broker,
+            },
+            None,
+            {'status': 'idle'},
+            account_options,
+            None,   # reset filter to "All accounts"
+            show_filter,
+        )
 
     # ── Clear all trade data ──
     @app.callback(
         Output('trades-store', 'data', allow_duplicate=True),
         Output('fetch-log-store', 'data', allow_duplicate=True),
         Output('analyzer-store', 'data', allow_duplicate=True),
+        Output('csv-account-filter', 'value', allow_duplicate=True),
+        Output('account-filter-collapse', 'is_open', allow_duplicate=True),
         Input('clear-btn', 'n_clicks'),
         prevent_initial_call=True,
     )
     def on_clear_click(n_clicks):
         if not n_clicks:
-            return no_update, no_update, no_update
-        return {}, {'status': 'idle'}, None
+            return no_update, no_update, no_update, no_update, no_update
+        return {}, {'status': 'idle'}, None, None, False
+
+    # ── Account filter (Fidelity multi-account CSV) ──
+    @app.callback(
+        Output('trades-store', 'data', allow_duplicate=True),
+        Input('csv-account-filter', 'value'),
+        State('trades-store', 'data'),
+        State('date-range-picker', 'start_date'),
+        State('date-range-picker', 'end_date'),
+        prevent_initial_call=True,
+    )
+    def on_account_filter_change(selected_accounts, current_data, start_date, end_date):
+        """Rebuild positions when the Fidelity account filter changes.
+
+        All raw trades are kept in trades-store; only position building is
+        filtered. Fidelity CSVs have no split-map entries, so the identity
+        key function is safe to use here.
+        """
+        if not current_data or not current_data.get('trades'):
+            return no_update
+
+        all_trades = _deserialize_trades(current_data['trades'])
+
+        if selected_accounts:
+            # Manual trades (no account field) are always included
+            filtered = [
+                t for t in all_trades
+                if t.get('source') == 'manual' or t.get('account', '') in selected_accounts
+            ]
+        else:
+            filtered = all_trades
+
+        positions_data = _build_and_serialize_positions(filtered)
+
+        return {
+            **current_data,
+            'positions': positions_data,
+        }
 
     # ── Load manual trades on page load (if no CSV/API data) ──
     @app.callback(
@@ -863,7 +924,7 @@ def register_callbacks(app):
         rows = []
         for p in sorted(positions, key=lambda x: x['open_date'] or ''):
             rows.append({
-                'open_date': p['open_date'][:10] if p['open_date'] else 'Before 2025',
+                'open_date': p['open_date'][:10] if p['open_date'] else '\u2014',
                 'close_date': p['close_date'][:10] if p['close_date'] else 'OPEN',
                 'symbol': p['symbol'],
                 'opt_type': p['opt_type'],

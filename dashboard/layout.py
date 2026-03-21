@@ -90,7 +90,7 @@ def build_upload_area():
                 id='csv-upload',
                 children=html.Div([
                     html.Span('\u2191 ', style={'fontSize': '1.2rem', 'opacity': '0.5'}),
-                    'Drop E-Trade CSV or ',
+                    'Drop CSV (E-Trade or Fidelity) or ',
                     html.A('browse', style={'color': '#00d4ff', 'fontWeight': '600',
                                            'textDecoration': 'none', 'cursor': 'pointer'}),
                 ], style={'fontFamily': "'DM Sans', sans-serif", 'fontSize': '0.85rem',
@@ -111,6 +111,27 @@ def build_upload_area():
         ),
         id='upload-collapse',
         is_open=True,
+    )
+
+
+def build_account_filter_panel():
+    """Account filter — shown after uploading a multi-account Fidelity CSV."""
+    return dbc.Collapse(
+        html.Div(
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label('Filter Accounts', size='sm'),
+                    dcc.Dropdown(
+                        id='csv-account-filter',
+                        multi=True,
+                        placeholder='All accounts',
+                    ),
+                ], width=6),
+            ]),
+            className='mb-3',
+        ),
+        id='account-filter-collapse',
+        is_open=False,
     )
 
 
@@ -647,12 +668,14 @@ def build_layout():
         dcc.Store(id='fetch-log-store', data={'status': 'idle'}),
         dcc.Store(id='analyzer-store'),
         dcc.Store(id='manual-trades-refresh', data=0),
+        dcc.Store(id='csv-broker-store', data=None),
 
         _build_trade_modal(),
 
         build_header(),
         html.Div(id='fetch-status-panel'),
         build_upload_area(),
+        build_account_filter_panel(),
         build_api_auth_area(),
         build_kpi_row(),
 

@@ -213,7 +213,7 @@ class TestActivityTypeDisambiguation:
             '03/09/26,03/11/26,ACCT,Sold,PUT TQQQ 04/17/26 50.000 OPENING TRANSACTION,'
             'TQQQ260417P00050000,Option,40.0,5.46,21840.0,0.52\n'
         )
-        trades, _, _ = parse_csv_content(csv)
+        trades, _, _, _ = parse_csv_content(csv)
         assert len(trades) == 1
         assert trades[0]['activity_type'] == 'Sold Short'
 
@@ -225,7 +225,7 @@ class TestActivityTypeDisambiguation:
             '03/09/26,03/11/26,ACCT,Sold,PUT TQQQ 04/17/26 50.000 CLOSING TRANSACTION,'
             'TQQQ260417P00050000,Option,40.0,5.46,21840.0,0.52\n'
         )
-        trades, _, _ = parse_csv_content(csv)
+        trades, _, _, _ = parse_csv_content(csv)
         assert len(trades) == 1
         assert trades[0]['activity_type'] == 'Sold To Close'
 
@@ -237,7 +237,7 @@ class TestActivityTypeDisambiguation:
             '03/09/26,03/11/26,ACCT,Bought,PUT TQQQ 04/17/26 50.000 CLOSING TRANSACTION,'
             'TQQQ260417P00050000,Option,40.0,1.20,4800.0,0.52\n'
         )
-        trades, _, _ = parse_csv_content(csv)
+        trades, _, _, _ = parse_csv_content(csv)
         assert len(trades) == 1
         assert trades[0]['activity_type'] == 'Bought To Cover'
 
@@ -249,7 +249,7 @@ class TestActivityTypeDisambiguation:
             '03/09/26,03/11/26,ACCT,Bought,CALL AAPL 04/17/26 200.000 OPENING TRANSACTION,'
             'AAPL260417C00200000,Option,10.0,3.50,3500.0,0.65\n'
         )
-        trades, _, _ = parse_csv_content(csv)
+        trades, _, _, _ = parse_csv_content(csv)
         assert len(trades) == 1
         assert trades[0]['activity_type'] == 'Bought To Open'
 
